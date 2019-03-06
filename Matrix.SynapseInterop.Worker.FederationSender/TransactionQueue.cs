@@ -346,14 +346,13 @@ namespace Matrix.SynapseInterop.Worker.FederationSender
         {
             Transaction currentTransaction;
 
-            await _concurrentTransactionLock.WaitAsync();
-
             if (!TryPopTransaction(destination, out currentTransaction))
             {
-                _concurrentTransactionLock.Release();
                 log.Debug("No transactions for {destination}", destination);
                 return;
             }
+            
+            await _concurrentTransactionLock.WaitAsync();
 
             while (true)
             {
@@ -368,8 +367,6 @@ namespace Matrix.SynapseInterop.Worker.FederationSender
                     }
                     catch (Exception ex)
                     {
-                        _concurrentTransactionLock.Release();
-
                         log.Warning("Transaction {txnId} {destination} failed: {message}",
                                     currentTransaction.transaction_id, destination, ex.Message);
 
@@ -384,8 +381,11 @@ namespace Matrix.SynapseInterop.Worker.FederationSender
 
                             log.Information("Retrying txn {txnId} in {secs}s",
                                             currentTransaction.transaction_id, ts.TotalSeconds);
-
+                            
+                            // Release the lock here, as we are going to retry the request again much later.
+                            _concurrentTransactionLock.Release();
                             await Task.Delay((int) ts.TotalMilliseconds);
+                            await _concurrentTransactionLock.WaitAsync();
                             continue;
                         }
 
@@ -402,11 +402,12 @@ namespace Matrix.SynapseInterop.Worker.FederationSender
 
                 if (!TryPopTransaction(destination, out currentTransaction))
                 {
-                    _concurrentTransactionLock.Release();
-                    log.Debug("No more transactions for {destination}", destination);
-                    return;
+                    break;
                 }
             }
+
+            log.Debug("No more transactions for {destination}", destination);
+            _concurrentTransactionLock.Release();
         }
 
         private void ClearDeviceMessages(Transaction transaction)
