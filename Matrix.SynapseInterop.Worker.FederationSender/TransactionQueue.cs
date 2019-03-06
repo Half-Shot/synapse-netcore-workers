@@ -363,7 +363,7 @@ namespace Matrix.SynapseInterop.Worker.FederationSender
                         WorkerMetrics.IncOngoingTransactions();
                         await _client.SendTransaction(currentTransaction);
                         ClearDeviceMessages(currentTransaction);
-                        WorkerMetrics.IncTransactionsSent(true, destination);
+                        WorkerMetrics.IncTransactionsSent("success", destination);
                     }
                     catch (Exception ex)
                     {
@@ -372,11 +372,10 @@ namespace Matrix.SynapseInterop.Worker.FederationSender
 
                         var ts = _backoff.GetBackoffForException(destination, ex);
 
-                        WorkerMetrics.IncTransactionsSent(false, destination);
-
                         // Some transactions cannot be retried.
                         if (ts != TimeSpan.Zero)
                         {
+                            WorkerMetrics.IncTransactionsSent("retry", destination);
                             WorkerMetrics.DecOngoingTransactions();
 
                             log.Information("Retrying txn {txnId} in {secs}s",
@@ -388,6 +387,8 @@ namespace Matrix.SynapseInterop.Worker.FederationSender
                             await _concurrentTransactionLock.WaitAsync();
                             continue;
                         }
+
+                        WorkerMetrics.IncTransactionsSent("fail", destination);
 
                         Log.Warning("NOT retrying {txnId} for {destination}", currentTransaction.transaction_id, destination);
                     }

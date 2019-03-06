@@ -1,4 +1,6 @@
-﻿using Prometheus;
+﻿using System.Threading.Tasks;
+using System.Timers;
+using Prometheus;
 
 namespace Matrix.SynapseInterop.Common
 {
@@ -142,9 +144,9 @@ namespace Matrix.SynapseInterop.Common
             OngoingTransactions.Dec();
         }
 
-        public static void IncTransactionsSent(bool successful, string destination)
+        public static void IncTransactionsSent(string result, string destination)
         {
-            TransactionsSent.WithLabels(_name, successful ? "success" : "fail", destination).Inc();
+            TransactionsSent.WithLabels(_name, result, destination).Inc();
         }
 
         public static void IncTransactionEventsSent(string type, string destination, int count = 1)
