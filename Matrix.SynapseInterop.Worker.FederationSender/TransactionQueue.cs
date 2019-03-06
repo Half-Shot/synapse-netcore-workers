@@ -353,6 +353,7 @@ namespace Matrix.SynapseInterop.Worker.FederationSender
             }
             
             await _concurrentTransactionLock.WaitAsync();
+            WorkerMetrics.IncOngoingTransactions();
 
             while (true)
             {
@@ -360,7 +361,6 @@ namespace Matrix.SynapseInterop.Worker.FederationSender
                 {
                     try
                     {
-                        WorkerMetrics.IncOngoingTransactions();
                         await _client.SendTransaction(currentTransaction);
                         ClearDeviceMessages(currentTransaction);
                         WorkerMetrics.IncTransactionsSent("success", destination);
@@ -376,7 +376,6 @@ namespace Matrix.SynapseInterop.Worker.FederationSender
                         if (ts != TimeSpan.Zero)
                         {
                             WorkerMetrics.IncTransactionsSent("retry", destination);
-                            WorkerMetrics.DecOngoingTransactions();
 
                             log.Information("Retrying txn {txnId} in {secs}s",
                                             currentTransaction.transaction_id, ts.TotalSeconds);
@@ -397,7 +396,6 @@ namespace Matrix.SynapseInterop.Worker.FederationSender
                 if (_backoff.ClearBackoff(destination))
                     log.Information("{destination} has come back online", destination);
                 
-                WorkerMetrics.DecOngoingTransactions();
                 WorkerMetrics.IncTransactionEventsSent("pdu", destination, currentTransaction.pdus.Count);
                 WorkerMetrics.IncTransactionEventsSent("edu", destination, currentTransaction.edus.Count);
 
@@ -409,6 +407,7 @@ namespace Matrix.SynapseInterop.Worker.FederationSender
 
             log.Debug("No more transactions for {destination}", destination);
             _concurrentTransactionLock.Release();
+            WorkerMetrics.DecOngoingTransactions();
         }
 
         private void ClearDeviceMessages(Transaction transaction)
