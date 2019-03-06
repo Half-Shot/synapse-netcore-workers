@@ -346,8 +346,11 @@ namespace Matrix.SynapseInterop.Worker.FederationSender
         {
             Transaction currentTransaction;
 
+            await _concurrentTransactionLock.WaitAsync();
+
             if (!TryPopTransaction(destination, out currentTransaction))
             {
+                _concurrentTransactionLock.Release();
                 log.Debug("No transactions for {destination}", destination);
                 return;
             }
@@ -358,10 +361,8 @@ namespace Matrix.SynapseInterop.Worker.FederationSender
                 {
                     try
                     {
-                        await _concurrentTransactionLock.WaitAsync();
                         WorkerMetrics.IncOngoingTransactions();
                         await _client.SendTransaction(currentTransaction);
-                        _concurrentTransactionLock.Release();
                         ClearDeviceMessages(currentTransaction);
                         WorkerMetrics.IncTransactionsSent(true, destination);
                     }
@@ -401,6 +402,7 @@ namespace Matrix.SynapseInterop.Worker.FederationSender
 
                 if (!TryPopTransaction(destination, out currentTransaction))
                 {
+                    _concurrentTransactionLock.Release();
                     log.Debug("No more transactions for {destination}", destination);
                     return;
                 }
